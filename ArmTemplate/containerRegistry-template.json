@@ -1,0 +1,30 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "containerRegistryName": {
+            "type": "String"
+        },
+        "containerRegistryLocation": {
+            "type": "String"
+        },
+        "containerRegistrySku": {
+            "defaultValue": "Standard",
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "type": "Microsoft.ContainerRegistry/registries",
+            "sku": {
+                "name": "[parameters('containerRegistrySku')]"
+            },
+            "name": "[parameters('containerRegistryName')]",
+            "apiVersion": "2017-10-01",
+            "location": "[parameters('containerRegistryLocation')]",
+            "properties": {
+                "adminUserEnabled": "true"
+            }
+        }
+    ]
+}

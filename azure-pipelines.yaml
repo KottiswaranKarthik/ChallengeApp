@@ -1,0 +1,91 @@
+trigger:
+  branches:
+    include: 
+    - master
+variables:
+  buildConfiguration: 'Release'
+  location: 'West US 2'
+  acrHostName: 'azservianreg.azurecr.io'
+  acrName: 'azservianreg'
+  rgName: 'rg-servian'
+  appContainerName: 'servian'
+  appImageName: 'servianimage01'
+  dbContainerName: 'postgresdb'
+  dbImageName: 'postgres:latest'
+
+stages:
+
+# Build Stage
+- stage: BuildAndTest
+  jobs:
+  - job: BuildAndTest
+    pool:
+      vmImage: 'Ubuntu-16.04'
+    steps:
+
+    ###################################
+    # Create or update the ACR resource
+    ###################################
+    - task: AzureResourceGroupDeployment@2
+      displayName: 'Azure Deployment:Create Azure Container Registry'
+      inputs:
+        azureSubscription: 'Azure Platform'
+        resourceGroupName: '$(rgName)'
+        location: $(location)
+        csmFile: '$(System.DefaultWorkingDirectory)/**/containerRegistry-template.json'
+        overrideParameters: '-containerRegistryName "$(acrName)" -containerRegistryLocation "$(location)" -containerRegistrySku standard'
+    ###################################
+    # Build container image
+    ###################################
+    - task: Docker@1
+      displayName: 'Build container image'
+      inputs:
+        azureSubscriptionEndpoint: 'Azure Platform'
+        azureContainerRegistry: '$(acrHostName)'
+        imageName: '$(appImageName):$(Build.BuildId)'
+        useDefaultContext: false
+        buildContext: '$(System.DefaultWorkingDirectory)'
+
+    # Push container image
+    - task: Docker@1
+      displayName: 'Push container image'
+      inputs:
+        azureSubscriptionEndpoint: 'Azure Platform'
+        azureContainerRegistry: '$(acrHostName)'
+        command: 'Push an image'
+        imageName: '$(appImageName):$(Build.BuildId)'
+    
+    # Copy ARM templates
+    - task: CopyFiles@2
+      displayName: 'Copy ARM templates'
+      inputs:
+        SourceFolder: ArmTemplate
+        TargetFolder: '$(build.artifactstagingdirectory)'
+
+    # Publish the app as an artifact
+    - publish: $(Build.StagingDirectory)
+      artifact: app
+
+# Staging release
+- stage: Staging
+  jobs:
+  - job: Release
+    pool:
+      vmImage: 'Ubuntu-16.04'
+    steps:
+    # Don't clone the repo
+    - checkout: none
+
+    # Download the published application artifact
+    - download: current
+      artifact: app
+
+    # Create or update the ACI resource
+    - task: AzureResourceGroupDeployment@2
+      displayName: 'Azure Deployment:Create Azure Container Instance'
+      inputs:
+        azureSubscription: 'Azure Platform'
+        resourceGroupName: '$(rgName)'
+        location: $(location)
+        csmFile: '$(Pipeline.Workspace)/**/containerInstance-template.json'
+        overrideParameters: '-containerTechAppName "$(appContainerName)" -containerTechAppImage "$(acrHostName)/$(appImageName):$(Build.BuildId)" -containerDBName "$(dbContainerName)" -containerDBImage "$(dbImageName)"'

@@ -1,0 +1,172 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "ContainerGroupName": {
+      "type": "string",
+      "defaultValue": "aciContainerGroup",
+      "metadata": {
+        "description": "Container Group name."
+      }
+    },
+    "dnsLabel": {
+      "type": "string",
+      "defaultValue": "ChallengeApp",
+      "metadata": {
+      "description": "Define the DNS name for the container group"
+      }
+    },
+    "VTT_LISTENPORT": {
+      "type": "string",
+      "defaultValue": "80",
+      "metadata": {
+        "description": "Web Server Listen Port"
+      }
+    },
+    "VTT_LISTENHOST": {
+      "type": "string",
+      "defaultValue": "0.0.0.0",
+      "metadata": {
+        "description": "Web Server Listen Host"
+      }
+    },
+     "VTT_DBHOST": {
+      "type": "string",
+      "defaultValue": "0.0.0.0",
+      "metadata": {
+        "description": "Database Server Listen Host"
+      }
+    },
+    "VTT_DBPASSWORD": {
+      "type": "string",
+      "defaultValue": "dummypassword",
+      "metadata": {
+        "description": "Postgres DB password"
+      }
+    },
+    "containerTechAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Application Container name"
+      }
+    },
+    "containerTechAppImage": {
+      "type": "string",
+      "metadata": {
+        "description": "Application Image"
+      }
+    },
+    "containerDBName": {
+      "type": "string",
+      "metadata": {
+        "description": "Postgres Container name"
+      }
+    },
+    "containerDBImage": {
+      "type": "string",
+      "metadata": {
+        "description": "Application Container name"
+      }
+    }
+  },
+  "resources": [
+    {
+      "name": "[parameters('ContainerGroupName')]",
+      "type": "Microsoft.ContainerInstance/containerGroups",
+      "apiVersion": "2019-12-01",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "sku": "Standard",
+          "containers": [
+          {
+            "name": "[parameters('containerDBName')]",
+            "properties": {
+              "image": "[parameters('containerDBImage')]",
+              "environmentVariables": [
+                {
+                    "name": "VTT_DBHOST",
+                    "value": "[parameters('VTT_DBHOST')]"
+                },
+                {
+                    "name": "POSTGRES_PASSWORD",
+                    "value": "[parameters('VTT_DBPASSWORD')]"
+                },
+               {
+                    "name": "VTT_LISTENHOST",
+                    "value": "[parameters('VTT_LISTENHOST')]"
+                }
+            ],
+              "resources": {
+                "requests": {
+                  "cpu": 1,
+                  "memoryInGb": 1.5
+                }
+              }
+            }
+          },
+             {
+            "name": "[parameters('containerTechAppName')]",
+            "properties": {
+              "image": "[parameters('containerTechAppImage')]",
+              "environmentVariables": [
+                {
+                    "name": "VTT_DBHOST",
+                    "value": "[parameters('VTT_DBHOST')]"
+                },
+                 {
+                    "name": "VTT_DBPASSWORD",
+                    "value": "[parameters('VTT_DBPASSWORD')]"
+                },
+                {
+                    "name": "VTT_LISTENPORT",
+                    "value": "[parameters('VTT_LISTENPORT')]"
+                },
+                {
+                    "name": "VTT_LISTENHOST",
+                    "value": "[parameters('VTT_LISTENHOST')]"
+                }
+            ],
+                "command": ["/bin/sh", "-c", "sleep 10 ; ./TechTestApp updatedb; ./TechTestApp serve"],
+              "resources": {
+                "requests": {
+                  "cpu": 1,
+                  "memoryInGb": 1.5
+                }
+              },
+              "ports": [
+                {
+                  "port": 80
+                }
+              ]
+            }
+          }
+        ],
+        "imageRegistryCredentials": [
+          {
+            "server": "azservianreg.azurecr.io",
+            "username": "3c1657a6-bfac-4bdd-98dc-2626a9cf5ab5",
+            "password": "y_JXx=C:t56P_JpTH0g0SlOVshs68D82"
+          }
+        ],
+        "restartPolicy": "OnFailure",
+        "osType": "Linux",
+        "ipAddress": {
+          "type": "Public",
+          "dnsNameLabel": "[parameters('dnsLabel')]",
+          "ports": [
+            {
+              "protocol": "tcp",
+              "port": 80
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "containerIPv4Address": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerInstance/containerGroups/', parameters('ContainerGroupName'))).ipAddress.ip]"
+    }
+  }
+}
